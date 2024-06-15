@@ -1,0 +1,73 @@
+1. Создаем интерфейс Navigator, в котором определим список допустимых действий:
+    fun launch(screen: BaseScreen) - запуск экрана. В него передается абстрактный,
+                                     нарочно для этого созданный, экран BaseScreen, потому что viewModel
+                                     не должны содержать андроид зависимостей, т.е. не должно быть ссылок
+                                     ни на активити, ни на фрагменты и запускать экраны можно лишь с помощью
+                                     какого-то абстрактного скрина, но что это непосредственно за скрин viewModel
+                                     знать не будет. Когда надо добавить новый экран в приложение, можно создать
+                                     новый класс экрана, унаследовать его от BaseScreen и в любом месте запускать.
+    fun goBack(result: Any? = null)
+    fun toast(@StringRes messageRes: Int)
+    fun getString(@StringRes messageRes: Int): String - получать из viewModel ресурс по id
+
+2. abstract class BaseFragment : Fragment()
+    От него мы наследуем все наши фрагменты при создании новых экранов.
+    В нем сразу определено abstract val viewModel: BaseViewModel, в котором будет храниться viewModel, которая будет
+    управлять этим фрагментом.
+
+3. open class BaseViewModel : ViewModel()
+    Базовый класс для всех viewModel с методом, в который будут приходить результаты из всех экранов:
+    open fun onResult(result: Any) {}
+
+4. class ViewModelFactory(
+       private val screen: BaseScreen,
+       private val fragment: BaseFragment) : ViewModelProvider.Factory
+
+    Фабрика для наших viewModel, в которой создадим метод, чтобы в каждом экране можно было бы создавать viewModel:
+    inline fun <reified VM : ViewModel> BaseFragment.screenViewModel() = viewModels<VM>
+
+5. class Event<T>(private val value: T)
+    Класс для нетипичных событий. Навигация - это типичное событие по всему проекту, но возможны и нетипичные события,
+    одиночные, которые специфичны только для этого экрана.
+
+6. Раализация экранов
+    6.1 class HelloFragment : BaseFragment()
+        Определяем для него класс, с помощью которого мы будем запускать этот фрагмент.
+        class Screen : BaseScreen
+    6.2 class EditFragment : BaseFragment()
+        Также определяем для него класс для запуска.
+        class Screen(val initialValue: String) : BaseScreen
+        В нем будет содержаться некоторая строка, которую мы будем передавать в HelloFragment при запуске.
+
+7. Теперь есть все инструменты, чтобы реализовывать viewModel.
+    7.1 -> class HelloViewModel(private val navigator: Navigator, screen: HelloFragment.Screen) : BaseViewModel()
+        Вся логика экрана находится во viewModel, а значит фрагмент будет содержать минимум логики. Бизнеслогики в
+        фрагменте не будет вообще, он будет лишь слушать изменения в LiveData и передавать во viewModel сообщения о нажатии
+        на вьюшки и т.п.
+    7.2 -> class EditViewModel(private val navigator: Navigator, screen: EditFragment.Screen) : BaseViewModel()
+
+8. Фрагмент
+    8.1 -> class HelloFragment : BaseFragment()
+    8.2 -> class EditFragment : BaseFragment()
+
+9. Реализация навигатора.
+   Мы не может сделать на базе активити, т.к. навигатор передается напрямую во вьюмодели, а жизненный цикл вьюмодели
+   намного больше, чем жизненный цикл активити.
+   Если реализовать его на базе активити, то при получении в аоргументах вьюмодели навигатора, получали бы ссылку и на активити.
+   А активити при повороте экрана уничтожается, но вьюмодель живет и держит ссылку на то, что уже использоваться не будет
+   и должно быть очищено. В итоге утечка памяти.
+   Нужен навигатор, который будет жить как и вьюмодель, и на ее базе и надо реализовать навигатор.
+
+10. Класс реализации навигатора.
+    -> class MainNavigator(application: Application) : AndroidViewModel(application), Navigator
+    для реализации launch() и goBack() мы не можем ссылаться на активити. т.к. находимся во вьюмодели. Поэтому нам нужен класс,
+    который позволит косвенным образом обращаться к активити MainActivityAction
+
+11. -> class MainActivityActions
+
+12. -> MainNavigator реализация launch() и goBack()
+
+13. -> class MainActivity
+
+14. Реализация фабрики создания viewModel
+    -> class ViewModelFactory
